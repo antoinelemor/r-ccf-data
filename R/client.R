@@ -94,7 +94,21 @@ ccf_tiers <- function(client) .ccf_get(client, "/auth/tiers")
 # ============================================================================
 
 #' Corpus-level stats: total articles, sentences, frames, annotation totals.
+#'
+#' Hits `GET /api/summary`. Returns a list with totals
+#' (`total_articles`, `total_sentences`, ...), per-frame counts under
+#' `frames`, the date range, and `media_outlets`.
+#'
+#' @section Tier:
+#' Minimum: `metadata`.
+#'
 #' @param client A `ccf_client`.
+#' @return Named list parsed from JSON.
+#' @examples
+#' \dontrun{
+#' s <- ccf_summary(ccf)
+#' s$total_articles; s$total_sentences
+#' }
 #' @export
 ccf_summary <- function(client) .ccf_get(client, "/api/summary")
 
@@ -134,11 +148,31 @@ ccf_frame_trends <- function(client, raw = FALSE) {
 
 #' Aggregate annotation counts grouped by year/month/media/language.
 #'
+#' Hits `GET /api/distribution`. Returns a tibble with one row per
+#' group and one column per requested annotation; the
+#' `sentence_count` and `article_count` columns are always added.
+#'
+#' @section Tier:
+#' Minimum: `analyst`.
+#'
 #' @param client A `ccf_client`.
-#' @param columns Character vector of annotation column names.
+#' @param columns Character vector of annotation column names. Pick
+#'   from [ccf_codebook()]'s `definitions`, e.g.
+#'   `c("economic_frame", "health_frame")`.
 #' @param group_by One of `"year"`, `"month"`, `"media"`, `"language"`.
-#' @param lang,media,date_from,date_to Optional filters.
-#' @param raw If `TRUE` return the raw response list.
+#' @param lang Optional language filter, `"en"` / `"fr"`
+#'   (case-insensitive — normalized to uppercase before sending).
+#' @param media Optional single media-outlet filter (string).
+#' @param date_from,date_to ISO date strings for the date window.
+#' @param raw If `TRUE` return the raw response list (with `data`,
+#'   `group_by`, `columns`); default returns the tibble of `data`.
+#' @return A tibble (or list when `raw = TRUE`).
+#' @examples
+#' \dontrun{
+#' df <- ccf_distribution(ccf,
+#'   columns  = c("economic_frame", "health_frame"),
+#'   group_by = "year", lang = "en")
+#' }
 #' @export
 ccf_distribution <- function(client, columns, group_by = "year",
                               lang = NULL, media = NULL,
@@ -227,25 +261,50 @@ ccf_cross_tabulation <- function(client, row_var, col_var, filters = list()) {
 
 #' Unified search over the CCF corpus.
 #'
-#' Wraps `POST /api/search/advanced`. Auto-paginates results.
+#' Wraps `POST /api/search/advanced`. Auto-paginates results until
+#' `limit` rows have been collected (or all pages have been fetched).
+#'
+#' @section Tier:
+#' Minimum: `researcher`. The search itself counts against the daily
+#' `searches_remaining` quota in addition to the regular request quota.
 #'
 #' @param client A `ccf_client`.
-#' @param query Search text. `"*"` or empty = browse mode.
-#' @param level `"sentence"` or `"article"`.
-#' @param mode `"text"` (default Postgres FTS), `"keyword"` (exact ILIKE),
-#'   `"semantic"` (FAISS), `"hybrid"`, `"entity"`, `"browse"`,
-#'   `"cascade_xref"`, or `"event_xref"`.
-#' @param filters Named list of server-side filters
-#'   (e.g. `list(lang = "en", media = c("Globe and Mail"),
-#'   date_from = "2010-01-01", frames = c("economic"), tone = "negative")`).
-#' @param thresholds Optional list of named lists
-#'   (`list(list(column = "economic_frame", min_pct = 0.3))`).
-#' @param filter_timing `"pre"` (server-side, default) or `"post"`
-#'   (broader fetch + in-memory filter).
-#' @param hybrid_weight Numeric in `[0,1]` blending semantic vs FTS.
-#' @param page_size Server page size (auto-paginates).
-#' @param limit Cap rows returned (`NULL` = all).
-#' @param raw If `TRUE` return the raw rows + last response.
+#' @param query Search text. Use `"*"` or empty to enter `"browse"` mode.
+#' @param level `"sentence"` (default — one row per matching sentence
+#'   with highlighted `headline`) or `"article"` (aggregated per `doc_id`
+#'   with frame percentages and `matching_count`).
+#' @param mode One of:
+#'   * `"text"` — Postgres FTS with language-aware stemming (default).
+#'   * `"keyword"` — exact `ILIKE` substring match (no stemming).
+#'   * `"semantic"` — FAISS dense retrieval over BAAI/bge-m3 embeddings.
+#'   * `"hybrid"` — blend of FTS + semantic (`hybrid_weight`).
+#'   * `"entity"` — search inside the NER fields.
+#'   * `"browse"` — apply filters only (no query).
+#'   * `"cascade_xref"` / `"event_xref"` — limit to overlap with cascades / clusters.
+#' @param filters Named list of server-side filters; common keys:
+#'   `lang` (`"en"` / `"fr"`, case-insensitive), `media` (string or
+#'   character vector of outlets), `date_from`, `date_to` (ISO),
+#'   `frames`, `tone`, `subcategories`, `messenger_subs`,
+#'   `event_subs`, `solutions`, `front_page`, `urgency`, `canada`,
+#'   `news_type`, `author`, `words_count_min`, `words_count_max`,
+#'   `province` (auto-translated to a media list).
+#' @param thresholds Optional list-of-lists: per-article annotation
+#'   thresholds, e.g. `list(list(column = "economic_frame", min_pct = 0.3))`.
+#' @param filter_timing `"pre"` (default — applied during SQL) or
+#'   `"post"` (apply annotation filters in-memory after a wider fetch).
+#' @param hybrid_weight Numeric in `[0, 1]` blending semantic vs FTS
+#'   when `mode = "hybrid"`.
+#' @param page_size Server page size; the client auto-paginates.
+#' @param limit Cap rows returned (`NULL` = fetch every page).
+#' @param raw If `TRUE` return a list with the raw rows + last response;
+#'   otherwise return a tibble (default).
+#' @return A tibble (or a list when `raw = TRUE`).
+#' @examples
+#' \dontrun{
+#' df <- ccf_search(ccf, "carbon tax", level = "sentence",
+#'                  filters = list(lang = "en", date_from = "2015-01-01"),
+#'                  limit = 500)
+#' }
 #' @export
 ccf_search <- function(client, query, level = "sentence", mode = "text",
                        filters = list(), thresholds = NULL,
@@ -272,15 +331,33 @@ ccf_search_summary <- function(client, query, filters = list()) {
             body = list(query = query, filters = .ccf_norm_filters(filters)))
 }
 
-#' Server-side CSV export. Returns a tibble by default.
+#' Server-side CSV export of a search query, parsed back into a tibble.
+#'
+#' Hits `POST /api/search/export`. The export endpoint enforces a
+#' per-token daily export quota (in addition to the regular request
+#' quota), so each call also decrements `exports_remaining`.
+#'
+#' @section Tier:
+#' Minimum: `expert`. Lower tiers will receive a `ccf_tier_error`.
+#'
 #' @param client A `ccf_client`.
-#' @param query Search text.
-#' @param filters Named list of filters.
-#' @param columns Character vector of columns to include (NULL = all whitelisted).
-#' @param max_rows Maximum rows to return.
-#' @param mode Search mode (`"text"`, etc.).
-#' @param include_search_params If `TRUE`, prepend a header block to the CSV.
-#' @param to_tibble If `FALSE` return raw CSV text.
+#' @param query Search text (uses Postgres FTS regardless of `mode`).
+#' @param filters Named list of filters; same keys as [ccf_search()].
+#' @param columns Character vector of columns to include
+#'   (`NULL` = all whitelisted). See `EXPORT_COLUMNS_WHITELIST` server-side.
+#' @param max_rows Maximum rows to return (server cap, default 50,000).
+#' @param mode Search mode label (logged with the export).
+#' @param include_search_params If `TRUE`, prepend a `# Query:` header
+#'   block at the top of the CSV.
+#' @param to_tibble If `TRUE` (default) parse the CSV into a tibble;
+#'   `FALSE` returns the raw CSV string.
+#' @return A tibble (or character scalar when `to_tibble = FALSE`).
+#' @examples
+#' \dontrun{
+#' df <- ccf_search_export(ccf, "carbon tax",
+#'   filters = list(lang = "en"),
+#'   columns = c("doc_id","sentence_text","pub_date","media","dominant_frame"))
+#' }
 #' @export
 ccf_search_export <- function(client, query, filters = list(),
                                columns = NULL, max_rows = 50000L,
@@ -313,9 +390,27 @@ ccf_semantic_search <- function(client, query, k = 100000L, raw = FALSE) {
 # Articles (researcher tier)
 # ============================================================================
 
-#' Full article: metadata + all sentences + per-sentence annotations.
+#' Full article: metadata + every sentence + per-sentence annotations.
+#'
+#' Hits `GET /api/article/<doc_id>`. Returns a list with article-level
+#' fields (`title`, `author`, `media`, `date`, `language`, `news_type`,
+#' `front_page`, ...) and a `sentences` list, one entry per sentence
+#' with all annotation columns.
+#'
+#' @section Tier:
+#' Minimum: `researcher`. Viewer accounts (separate from the tier system)
+#' may still hit a per-account article-view quota; once exhausted, the
+#' server returns sentences with empty `sentence_text` and sets
+#' `viewer_limit_reached = TRUE`.
+#'
 #' @param client A `ccf_client`.
 #' @param doc_id Integer document ID.
+#' @return Named list parsed from JSON.
+#' @examples
+#' \dontrun{
+#' art <- ccf_article(ccf, 123456L)
+#' art$title; length(art$sentences)
+#' }
 #' @export
 ccf_article <- function(client, doc_id) .ccf_get(client, sprintf("/api/article/%d", as.integer(doc_id)))
 
