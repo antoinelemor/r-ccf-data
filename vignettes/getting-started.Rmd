@@ -1,0 +1,120 @@
+---
+title: "Getting started with ccfdata"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with ccfdata}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(eval = FALSE, comment = "#>")
+```
+
+`ccfdata` is the R client for the Canadian Climate Framing data
+platform — 250 000+ Canadian newspaper articles (1978–2024), 9.2 M
+sentences, and 67 climate-coverage annotations.
+
+## Setting up
+
+Generate an API token at <https://data.ccf-project.ca> (Profile page),
+then:
+
+```{r}
+library(ccfdata)
+Sys.setenv(CCF_TOKEN = "eyJhbG...")   # or pass token = directly
+ccf <- ccf_client()
+ccf_me(ccf)
+```
+
+`ccf_me()` shows your tier and remaining quotas. Five tiers exist
+(`metadata` < `analyst` < `researcher` < `expert` < `writer`); each
+unlocks more endpoints and ships with a daily request budget. The
+client surfaces every quota header through `ccf_last_status(ccf)`.
+
+## Exploring the corpus
+
+```{r}
+ccf_summary(ccf)                   # corpus-level totals
+ccf_articles_by_year(ccf)          # tibble: year, count
+ccf_geo_data(ccf)                  # by-province aggregates
+```
+
+The 67-category annotation framework ships with the package — no
+network needed:
+
+```{r}
+ccf_codebook_df()
+ccf_define("sci_skepticism")
+ccf_subcategories_of("economic")
+```
+
+## Time series and distributions
+
+```{r}
+library(ggplot2)
+
+df <- ccf_distribution(
+  ccf,
+  columns  = c("economic_frame", "health_frame", "environmental_frame"),
+  group_by = "year", lang = "en"
+)
+
+# Pivot for plotting
+long <- tidyr::pivot_longer(df,
+  cols = c(economic_frame, health_frame, environmental_frame),
+  names_to = "frame", values_to = "n_sentences"
+)
+
+ggplot(long, aes(year, n_sentences, color = frame)) +
+  geom_line() +
+  labs(title = "Frame coverage over time")
+```
+
+## Searching the corpus
+
+```{r}
+hits <- ccf_search(ccf, "carbon tax",
+                    level = "sentence",
+                    filters = list(lang = "en", date_from = "2015-01-01"),
+                    limit = 500)
+
+# What's the per-year breakdown of those hits?
+ccf_search_summary(ccf, "carbon tax", filters = list(lang = "en"))
+```
+
+For semantically similar passages, use the FAISS index:
+
+```{r}
+ccf_semantic_search(ccf, "climate refugees in the Arctic", k = 500)
+```
+
+## Cross-year cascades and events
+
+The CCF platform identifies "cascades" — bursts of correlated coverage
+across newspapers — and event clusters. Both are searchable:
+
+```{r}
+ccf_cascades_summary(ccf)
+ccf_cascades_cross_year_all(ccf)
+ccf_events_clusters(ccf, year_min = 2018L,
+                    types = c("evt_weather"), limit = 200)
+ccf_events_semantic_search(ccf, "wildfire smoke")
+```
+
+## Handling errors
+
+The client uses typed R conditions for the most common server
+responses:
+
+```{r}
+tryCatch(
+  ccf_search(ccf, "carbon tax"),
+  ccf_tier_error = function(e) {
+    message("Need tier ", e$body$required_tier)
+  },
+  ccf_quota_error = function(e) {
+    message("Hit quota: ", e$body$reason)
+  }
+)
+```
