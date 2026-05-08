@@ -148,7 +148,7 @@ ccf_distribution <- function(client, columns, group_by = "year",
     stop("group_by must be one of: year, month, media, language", call. = FALSE)
   }
   q <- list(columns = paste(columns, collapse = ","), group_by = group_by,
-            lang = lang, media = media,
+            lang = .ccf_norm_lang(lang), media = media,
             date_from = date_from, date_to = date_to)
   resp <- .ccf_get(client, "/api/distribution", query = q)
   if (raw) resp else .ccf_to_tibble(resp$data)
@@ -163,7 +163,7 @@ ccf_subcategory_detail <- function(client, frame,
                                     date_from = NULL, date_to = NULL,
                                     media = NULL, language = NULL) {
   q <- list(frame = frame, date_from = date_from, date_to = date_to,
-            media = media, language = language)
+            media = media, language = .ccf_norm_lang(language))
   .ccf_get(client, "/api/subcategory-detail", query = q)
 }
 
@@ -171,36 +171,42 @@ ccf_subcategory_detail <- function(client, frame,
 #' @param client A `ccf_client`.
 #' @param ... Optional filters (`date_from`, `date_to`, `media`, `language`).
 #' @export
-ccf_messenger_analysis <- function(client, ...) .ccf_get(client, "/api/messenger-analysis", query = list(...))
+ccf_messenger_analysis <- function(client, ...) {
+  .ccf_get(client, "/api/messenger-analysis", query = .ccf_norm_filters(list(...)))
+}
 
 #' @rdname ccf_messenger_analysis
 #' @export
-ccf_event_analysis <- function(client, ...) .ccf_get(client, "/api/event-analysis", query = list(...))
+ccf_event_analysis <- function(client, ...) {
+  .ccf_get(client, "/api/event-analysis", query = .ccf_norm_filters(list(...)))
+}
 
 #' @rdname ccf_messenger_analysis
 #' @export
-ccf_solution_analysis <- function(client, ...) .ccf_get(client, "/api/solution-analysis", query = list(...))
+ccf_solution_analysis <- function(client, ...) {
+  .ccf_get(client, "/api/solution-analysis", query = .ccf_norm_filters(list(...)))
+}
 
 #' Monthly tone / urgency / Canada-mention trends.
 #' @inheritParams ccf_messenger_analysis
 #' @param raw If `TRUE` return the raw list.
 #' @export
 ccf_tone_trends <- function(client, raw = FALSE, ...) {
-  rows <- .ccf_get(client, "/api/tone-trends", query = list(...))
+  rows <- .ccf_get(client, "/api/tone-trends", query = .ccf_norm_filters(list(...)))
   if (raw) rows else .ccf_to_tibble(rows)
 }
 
 #' @rdname ccf_tone_trends
 #' @export
 ccf_urgency_trends <- function(client, raw = FALSE, ...) {
-  rows <- .ccf_get(client, "/api/urgency-trends", query = list(...))
+  rows <- .ccf_get(client, "/api/urgency-trends", query = .ccf_norm_filters(list(...)))
   if (raw) rows else .ccf_to_tibble(rows)
 }
 
 #' @rdname ccf_tone_trends
 #' @export
 ccf_canada_coverage <- function(client, raw = FALSE, ...) {
-  rows <- .ccf_get(client, "/api/canada-coverage", query = list(...))
+  rows <- .ccf_get(client, "/api/canada-coverage", query = .ccf_norm_filters(list(...)))
   if (raw) rows else .ccf_to_tibble(rows)
 }
 
@@ -246,7 +252,8 @@ ccf_search <- function(client, query, level = "sentence", mode = "text",
                        filter_timing = "pre", hybrid_weight = 0.5,
                        page_size = 100L, limit = NULL, raw = FALSE) {
   body <- list(query = query, mode = mode, level = level,
-               filters = filters, filter_timing = filter_timing,
+               filters = .ccf_norm_filters(filters),
+               filter_timing = filter_timing,
                hybrid_weight = hybrid_weight)
   if (!is.null(thresholds)) body$thresholds <- thresholds
   paged <- .ccf_paginate_post(client, "/api/search/advanced", body,
@@ -262,7 +269,7 @@ ccf_search <- function(client, query, level = "sentence", mode = "text",
 #' @export
 ccf_search_summary <- function(client, query, filters = list()) {
   .ccf_post(client, "/api/search/summary",
-            body = list(query = query, filters = filters))
+            body = list(query = query, filters = .ccf_norm_filters(filters)))
 }
 
 #' Server-side CSV export. Returns a tibble by default.
@@ -279,7 +286,7 @@ ccf_search_export <- function(client, query, filters = list(),
                                columns = NULL, max_rows = 50000L,
                                mode = "text", include_search_params = FALSE,
                                to_tibble = TRUE) {
-  body <- list(query = query, filters = filters, mode = mode,
+  body <- list(query = query, filters = .ccf_norm_filters(filters), mode = mode,
                max_rows = as.integer(max_rows),
                include_search_params = include_search_params)
   if (!is.null(columns)) body$columns <- as.character(columns)

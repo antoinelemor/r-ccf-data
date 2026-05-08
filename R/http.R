@@ -117,6 +117,25 @@
 }
 
 #' @keywords internal
+.ccf_norm_lang <- function(value) {
+  # The CCF database stores language as uppercase 2-letter codes.
+  # Accept either case from the user.
+  if (is.null(value) || length(value) == 0) return(value)
+  if (is.character(value)) {
+    return(ifelse(nchar(value) == 2L, toupper(value), value))
+  }
+  value
+}
+
+#' @keywords internal
+.ccf_norm_filters <- function(filters) {
+  if (is.null(filters) || !length(filters)) return(filters)
+  if ("lang" %in% names(filters))     filters$lang     <- .ccf_norm_lang(filters$lang)
+  if ("language" %in% names(filters)) filters$language <- .ccf_norm_lang(filters$language)
+  filters
+}
+
+#' @keywords internal
 .ccf_drop_empty <- function(x) {
   if (is.null(x) || !length(x)) return(list())
   keep <- vapply(x, function(v) {
