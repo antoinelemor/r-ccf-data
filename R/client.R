@@ -109,8 +109,13 @@ ccf_tiers <- function(client) .ccf_get(client, "/auth/tiers")
 #' s <- ccf_summary(ccf)
 #' s$total_articles; s$total_sentences
 #' }
+#' @param corpus Provenance selector: `"legacy"` (frozen corpus, the default),
+#'   `"continuous"` (real-time feed) or `"all"`. The latter two require an
+#'   `observer` token. `NULL` omits the parameter (server default = legacy).
 #' @export
-ccf_summary <- function(client) .ccf_get(client, "/api/summary")
+ccf_summary <- function(client, corpus = NULL)
+  .ccf_get(client, "/api/summary",
+           query = .ccf_drop_empty(list(corpus = .ccf_norm_corpus(corpus))))
 
 #' Server-side annotation schema (frames, subcategories, columns).
 #' @param client A `ccf_client`.
@@ -120,25 +125,29 @@ ccf_geo_data <- function(client) .ccf_get(client, "/api/geo-data")
 #' Articles by year.
 #' @param client A `ccf_client`.
 #' @param raw If `TRUE` return the raw JSON list instead of a tibble.
+#' @param corpus Provenance selector; see [ccf_summary()].
 #' @export
-ccf_articles_by_year <- function(client, raw = FALSE) {
-  rows <- .ccf_get(client, "/api/articles-by-year")
+ccf_articles_by_year <- function(client, raw = FALSE, corpus = NULL) {
+  rows <- .ccf_get(client, "/api/articles-by-year",
+                   query = .ccf_drop_empty(list(corpus = .ccf_norm_corpus(corpus))))
   if (raw) rows else .ccf_to_tibble(rows)
 }
 
 #' Articles by media outlet.
 #' @inheritParams ccf_articles_by_year
 #' @export
-ccf_articles_by_media <- function(client, raw = FALSE) {
-  rows <- .ccf_get(client, "/api/articles-by-media")
+ccf_articles_by_media <- function(client, raw = FALSE, corpus = NULL) {
+  rows <- .ccf_get(client, "/api/articles-by-media",
+                   query = .ccf_drop_empty(list(corpus = .ccf_norm_corpus(corpus))))
   if (raw) rows else .ccf_to_tibble(rows)
 }
 
 #' Monthly frame coverage (precomputed view).
 #' @inheritParams ccf_articles_by_year
 #' @export
-ccf_frame_trends <- function(client, raw = FALSE) {
-  rows <- .ccf_get(client, "/api/frame-trends")
+ccf_frame_trends <- function(client, raw = FALSE, corpus = NULL) {
+  rows <- .ccf_get(client, "/api/frame-trends",
+                   query = .ccf_drop_empty(list(corpus = .ccf_norm_corpus(corpus))))
   if (raw) rows else .ccf_to_tibble(rows)
 }
 
@@ -177,13 +186,14 @@ ccf_frame_trends <- function(client, raw = FALSE) {
 ccf_distribution <- function(client, columns, group_by = "year",
                               lang = NULL, media = NULL,
                               date_from = NULL, date_to = NULL,
-                              raw = FALSE) {
+                              raw = FALSE, corpus = NULL) {
   if (!group_by %in% c("year", "month", "media", "language")) {
     stop("group_by must be one of: year, month, media, language", call. = FALSE)
   }
   q <- list(columns = paste(columns, collapse = ","), group_by = group_by,
             lang = .ccf_norm_lang(lang), media = media,
-            date_from = date_from, date_to = date_to)
+            date_from = date_from, date_to = date_to,
+            corpus = .ccf_norm_corpus(corpus))
   resp <- .ccf_get(client, "/api/distribution", query = q)
   if (raw) resp else .ccf_to_tibble(resp$data)
 }
@@ -195,9 +205,11 @@ ccf_distribution <- function(client, columns, group_by = "year",
 #' @export
 ccf_subcategory_detail <- function(client, frame,
                                     date_from = NULL, date_to = NULL,
-                                    media = NULL, language = NULL) {
+                                    media = NULL, language = NULL,
+                                    corpus = NULL) {
   q <- list(frame = frame, date_from = date_from, date_to = date_to,
-            media = media, language = .ccf_norm_lang(language))
+            media = media, language = .ccf_norm_lang(language),
+            corpus = .ccf_norm_corpus(corpus))
   .ccf_get(client, "/api/subcategory-detail", query = q)
 }
 
@@ -249,10 +261,12 @@ ccf_canada_coverage <- function(client, raw = FALSE, ...) {
 #' @param row_var,col_var Column names.
 #' @param filters Optional named list of filters.
 #' @export
-ccf_cross_tabulation <- function(client, row_var, col_var, filters = list()) {
-  .ccf_post(client, "/api/cross-tabulation", body = list(
-    row_var = row_var, col_var = col_var, filters = filters
-  ))
+ccf_cross_tabulation <- function(client, row_var, col_var, filters = list(),
+                                  corpus = NULL) {
+  .ccf_post(client, "/api/cross-tabulation", body = .ccf_drop_empty(list(
+    row_var = row_var, col_var = col_var, filters = filters,
+    corpus = .ccf_norm_corpus(corpus)
+  )))
 }
 
 # ============================================================================
@@ -309,12 +323,14 @@ ccf_cross_tabulation <- function(client, row_var, col_var, filters = list()) {
 ccf_search <- function(client, query, level = "sentence", mode = "text",
                        filters = list(), thresholds = NULL,
                        filter_timing = "pre", hybrid_weight = 0.5,
-                       page_size = 100L, limit = NULL, raw = FALSE) {
+                       page_size = 100L, limit = NULL, raw = FALSE,
+                       corpus = NULL) {
   body <- list(query = query, mode = mode, level = level,
                filters = .ccf_norm_filters(filters),
                filter_timing = filter_timing,
                hybrid_weight = hybrid_weight)
   if (!is.null(thresholds)) body$thresholds <- thresholds
+  if (!is.null(.ccf_norm_corpus(corpus))) body$corpus <- corpus
   paged <- .ccf_paginate_post(client, "/api/search/advanced", body,
                                list_keys = c("sentences", "articles", "results"),
                                page_size = page_size, limit = limit)
@@ -326,9 +342,11 @@ ccf_search <- function(client, query, level = "sentence", mode = "text",
 #' @param query Search text.
 #' @param filters Named list.
 #' @export
-ccf_search_summary <- function(client, query, filters = list()) {
+ccf_search_summary <- function(client, query, filters = list(), corpus = NULL) {
   .ccf_post(client, "/api/search/summary",
-            body = list(query = query, filters = .ccf_norm_filters(filters)))
+            body = .ccf_drop_empty(list(query = query,
+                                        filters = .ccf_norm_filters(filters),
+                                        corpus = .ccf_norm_corpus(corpus))))
 }
 
 #' Server-side CSV export of a search query, parsed back into a tibble.
@@ -362,11 +380,12 @@ ccf_search_summary <- function(client, query, filters = list()) {
 ccf_search_export <- function(client, query, filters = list(),
                                columns = NULL, max_rows = 50000L,
                                mode = "text", include_search_params = FALSE,
-                               to_tibble = TRUE) {
+                               to_tibble = TRUE, corpus = NULL) {
   body <- list(query = query, filters = .ccf_norm_filters(filters), mode = mode,
                max_rows = as.integer(max_rows),
                include_search_params = include_search_params)
   if (!is.null(columns)) body$columns <- as.character(columns)
+  if (!is.null(.ccf_norm_corpus(corpus))) body$corpus <- corpus
   resp <- .ccf_post_raw(client, "/api/search/export", body = body)
   csv <- httr2::resp_body_string(resp)
   if (!to_tibble) return(csv)
@@ -380,9 +399,11 @@ ccf_search_export <- function(client, query, filters = list(),
 #' @param k Number of nearest neighbours (default 100,000 = effectively unlimited).
 #' @param raw If `TRUE` return the raw response list.
 #' @export
-ccf_semantic_search <- function(client, query, k = 100000L, raw = FALSE) {
+ccf_semantic_search <- function(client, query, k = 100000L, raw = FALSE,
+                                 corpus = NULL) {
   resp <- .ccf_post(client, "/api/semantic-search",
-                    body = list(query = query, k = as.integer(k)))
+                    body = .ccf_drop_empty(list(query = query, k = as.integer(k),
+                                                corpus = .ccf_norm_corpus(corpus))))
   if (raw) resp else .ccf_to_tibble(resp$results)
 }
 
@@ -412,16 +433,19 @@ ccf_semantic_search <- function(client, query, k = 100000L, raw = FALSE) {
 #' art$title; length(art$sentences)
 #' }
 #' @export
-ccf_article <- function(client, doc_id) .ccf_get(client, sprintf("/api/article/%d", as.integer(doc_id)))
+ccf_article <- function(client, doc_id, corpus = NULL)
+  .ccf_get(client, sprintf("/api/article/%d", as.integer(doc_id)),
+           query = .ccf_drop_empty(list(corpus = .ccf_norm_corpus(corpus))))
 
 #' Batch-fetch article metadata (no sentences).
 #' @param client A `ccf_client`.
 #' @param doc_ids Integer vector of document IDs.
 #' @param raw If `TRUE` return the raw response list.
 #' @export
-ccf_articles_batch <- function(client, doc_ids, raw = FALSE) {
+ccf_articles_batch <- function(client, doc_ids, raw = FALSE, corpus = NULL) {
   resp <- .ccf_post(client, "/api/articles/batch",
-                    body = list(doc_ids = as.integer(doc_ids)))
+                    body = .ccf_drop_empty(list(doc_ids = as.integer(doc_ids),
+                                                corpus = .ccf_norm_corpus(corpus))))
   if (raw) resp else .ccf_to_tibble(resp$articles)
 }
 

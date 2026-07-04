@@ -41,7 +41,7 @@ ccf <- ccf_client(token = "...", base_url = "http://localhost:8005")
 
 ## API tiers
 
-The platform enforces five progressive tiers per token. The tier is
+The platform enforces six progressive tiers per token. The tier is
 assigned by an administrator and dictates both *which* endpoints the
 token may call and *how many* requests it can issue per day.
 
@@ -52,6 +52,22 @@ token may call and *how many* requests it can issue per day.
 | `researcher` |          20 000 |              1 000 |                 20 | + search/article/cascades/events/semantic             |
 | `expert`     |       unlimited |          unlimited |          unlimited | + CSV exports                                         |
 | `writer`     |       unlimited |          unlimited |          unlimited | + admin endpoints (internal tooling)                  |
+| `observer`   |       unlimited |          unlimited |          unlimited | + the real-time continuous feed (`corpus=continuous`/`all`) |
+
+## Corpus provenance (`corpus =`)
+
+Every data function takes an optional `corpus` argument choosing which slice
+of the observatory to read: `"legacy"` (the frozen, citable study corpus —
+**the default**, reproducible), `"continuous"` (the real-time extraction feed),
+or `"all"` (both). `legacy` is open to every tier; `continuous` and `all`
+require an `observer` token (other tiers get `403 corpus_forbidden`). Omitting
+`corpus` keeps the legacy default, so existing code is unchanged.
+
+```r
+ccf_summary(ccf)                            # legacy (default)
+ccf_search(ccf, "carbon tax", corpus = "all")        # needs observer tier
+ccf_distribution(ccf, "economic_frame", corpus = "continuous")
+```
 
 After every call the client stashes `tier`, `requests_remaining`,
 `searches_remaining`, `exports_remaining` from the `X-CCF-*` response

@@ -8,7 +8,7 @@
 
 #' @keywords internal
 .ccf_default_user_agent <- function() {
-  paste0("ccfdata-R/0.1.0 (", R.version$version.string, ")")
+  paste0("ccfdata-R/0.2.0 (", R.version$version.string, ")")
 }
 
 #' @keywords internal
@@ -128,10 +128,27 @@
 }
 
 #' @keywords internal
+.ccf_valid_corpora <- c("legacy", "continuous", "all")
+
+#' @keywords internal
+.ccf_norm_corpus <- function(value) {
+  # Corpus-provenance selector. `legacy` (frozen, citable) is the server
+  # default and open to every tier; `continuous` (real-time feed) and `all`
+  # require an `observer` token. NULL is passed through so the request omits it.
+  if (is.null(value) || length(value) == 0) return(NULL)
+  if (!value %in% .ccf_valid_corpora) {
+    stop(sprintf("corpus must be one of %s, got '%s'",
+                 paste(.ccf_valid_corpora, collapse = "|"), value), call. = FALSE)
+  }
+  value
+}
+
+#' @keywords internal
 .ccf_norm_filters <- function(filters) {
   if (is.null(filters) || !length(filters)) return(filters)
   if ("lang" %in% names(filters))     filters$lang     <- .ccf_norm_lang(filters$lang)
   if ("language" %in% names(filters)) filters$language <- .ccf_norm_lang(filters$language)
+  if ("corpus" %in% names(filters))   filters$corpus   <- .ccf_norm_corpus(filters$corpus)
   filters
 }
 

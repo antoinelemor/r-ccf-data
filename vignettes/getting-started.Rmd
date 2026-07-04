@@ -102,6 +102,21 @@ ccf_events_clusters(ccf, year_min = 2018L,
 ccf_events_semantic_search(ccf, "wildfire smoke")
 ```
 
+## Legacy vs. real-time corpus
+
+Every data function accepts a `corpus` argument. By default you read the
+`"legacy"` corpus — the frozen, citable dataset from the study, which keeps
+results reproducible. Holders of an `observer` token can additionally read the
+continuously extracted real-time feed with `corpus = "continuous"`, or both at
+once with `corpus = "all"`:
+
+```{r}
+ccf_summary(ccf, corpus = "all")                 # observer tier only
+ccf_search(ccf, "carbon tax", corpus = "continuous")
+```
+
+Omitting `corpus` always yields the reproducible legacy corpus.
+
 ## Handling errors
 
 The client uses typed R conditions for the most common server
