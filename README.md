@@ -190,6 +190,44 @@ does. Functions tagged *offline* don't hit the network.
 |-----------------------------------------------------------|-----------------------------------|-------------|
 | `ccf_search_export(ccf, query, filters, columns, ...)`    | POST /api/search/export           | Server-side CSV export, parsed back into a tibble by default. |
 
+### Live observatory — public, **no token required**
+
+The CCF observatory (<https://ccf-project.ca/observatory>) continuously
+extracts, annotates and summarises Canadian climate coverage. Its public
+read-only API is wrapped by a dedicated `ccf_live()` client. Events,
+cascades and articles carry their **bilingual LLM summaries**
+(`summary_en` / `summary_fr`, stamped `generated_at`).
+
+```r
+live <- ccf_live()                          # no token needed
+ccf_live_latest_events(live, limit = 20)    # events + summaries EN/FR
+ccf_live_article(live, 275849)$summary_fr   # LLM summary of one article
+ccf_live_articles_timeline(live, days = 15) # day×outlet timeline + frames
+ccf_live_daily_brief(live)                  # $en / $fr
+```
+
+| Function | HTTP | Description |
+|---|---|---|
+| `ccf_live_latest_events(live, limit, min_media)` | GET /api/latest-events | Latest detected events + titles/summaries EN-FR, strength, key articles. |
+| `ccf_live_ongoing_events(live)` | GET /api/ongoing-events | Events detected today/yesterday. |
+| `ccf_live_event(live, event_key)` | GET /api/event/{key} | Full event profile (articles, entities, summaries). |
+| `ccf_live_search_events(live, q)` | GET /api/search-events | Full-text search over event titles + summaries. |
+| `ccf_live_recent_cascades(live, limit)` | GET /api/recent-cascades | Recent cascades + frame, z-score, summaries EN-FR. |
+| `ccf_live_cascade(live, cascade_id)` | GET /api/cascade/{id} | Full cascade profile. |
+| `ccf_live_cascade_summary(live)` | GET /api/cascade-summary | Aggregate cascade statistics. |
+| `ccf_live_search_cascades(live, q)` | GET /api/search-cascades | Full-text search over cascade titles + summaries. |
+| `ccf_live_latest_articles(live)` / `ccf_live_latest_classified(live)` | GET /api/latest-articles, … | Freshest extracted / fully-classified articles + summaries. |
+| `ccf_live_article(live, doc_id)` | GET /api/article/{id} | Metadata, province, 8-frame profile, entities, related events/cascades, summaries. |
+| `ccf_live_articles_timeline(live, days)` | GET /api/articles-timeline | Day-by-day, outlet-by-outlet timeline (≤60 days). |
+| `ccf_live_search_titles(live, q)` | GET /api/search-titles | Full-text search over live-corpus titles. |
+| `ccf_live_geo_data(live)` / `ccf_live_province_panels(live)` / `ccf_live_frames_by_province(live)` | GET /api/geo-data, … | Provinces: volumes, outlets, LLM briefs, frame shares. |
+| `ccf_live_media_panels(live)` / `ccf_live_media_coverage(live)` / `ccf_live_frames_by_media(live)` / `ccf_live_articles_by_media(live)` / `ccf_live_articles_by_month(live)` | GET /api/media-panels, … | Outlets: panels, freshness, frame shares, volumes. |
+| `ccf_live_frames_national(live)` / `ccf_live_frames_data(live)` / `ccf_live_tone_over_time(live)` / `ccf_live_category_distribution(live)` / `ccf_live_network_data(live)` / `ccf_live_annotation_metrics(live)` | GET /api/frames-national, … | National trends, tone, categories, entity network, model metrics. |
+| `ccf_live_daily_brief(live)` / `ccf_live_overview_summary(live)` / `ccf_live_observatory_summary(live)` / `ccf_live_observatory_stats(live)` / `ccf_live_stats(live)` | GET /api/daily-brief, … | LLM editorial briefs + observatory/site statistics. |
+
+> The live corpus (`continuous`) is refreshed several times a day and is
+> **not frozen** — cite the `legacy` corpus (authenticated API) in papers.
+
 ### Codebook & introspection (offline — no token, no network)
 
 | Function                                  | Description |

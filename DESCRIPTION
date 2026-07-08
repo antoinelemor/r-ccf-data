@@ -1,7 +1,7 @@
 Package: ccfdata
 Type: Package
 Title: R Client for the Canadian Climate Framing Data API
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: c(
     person("Antoine", "Lemorphic", role = c("aut", "cre"),
            email = "antoine.lemor@usherbrooke.ca"),

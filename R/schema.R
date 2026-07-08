@@ -11,7 +11,10 @@
 }
 
 #' @keywords internal
-.ccf_codebook_cache <- NULL
+# Mutable cache environment: a plain top-level binding + `<<-` fails with
+# "cannot change value of locked binding" once the namespace is locked
+# (installed package / R CMD check) — environments stay writable.
+.ccf_cache <- new.env(parent = emptyenv())
 
 #' Return the embedded CCF codebook as an R list.
 #'
@@ -25,10 +28,10 @@
 #' names(cb$frames)
 #' @export
 ccf_codebook <- function() {
-  if (is.null(.ccf_codebook_cache)) {
-    .ccf_codebook_cache <<- .ccf_load_codebook()
+  if (is.null(.ccf_cache$codebook)) {
+    .ccf_cache$codebook <- .ccf_load_codebook()
   }
-  .ccf_codebook_cache
+  .ccf_cache$codebook
 }
 
 #' Operational definition for a single annotation column.
