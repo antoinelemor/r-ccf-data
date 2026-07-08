@@ -10,5 +10,7 @@ ccf_tier_descriptions()
 Named character vector indexed by tier name.
 }
 \description{
-Short description of each tier.
+\code{public} is not a token tier: it flags the live observatory functions
+(\verb{ccf_live_*()}), which hit the public real-time API and require no
+token at all.
 }

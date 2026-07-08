@@ -7,11 +7,13 @@
 ccf_methods_by_tier(tier, exact = FALSE)
 }
 \arguments{
-\item{tier}{Tier name (one of \code{ccf_tier_names()}).}
+\item{tier}{Tier name (one of \code{ccf_tier_names()}, or \code{"public"} for the
+token-free live observatory functions).}
 
 \item{exact}{If \code{TRUE}, only functions whose minimum tier is exactly
 \code{tier}; if \code{FALSE} (default), all functions callable at this tier
-(i.e. requiring \code{tier} or a lower one).}
+(i.e. requiring \code{tier} or a lower one; \code{public} functions are callable
+from any tier — and with no token at all).}
 }
 \value{
 Sorted character vector of function names.
@@ -22,4 +24,5 @@ List functions callable at a given tier.
 \examples{
 ccf_methods_by_tier("expert", exact = TRUE)   # only "ccf_search_export"
 "ccf_search" \%in\% ccf_methods_by_tier("researcher")  # TRUE
+"ccf_live_latest_events" \%in\% ccf_methods_by_tier("metadata")  # TRUE (public)
 }

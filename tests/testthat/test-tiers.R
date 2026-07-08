@@ -9,10 +9,20 @@ test_that("ccf_tier_descriptions covers every tier", {
   expect_true(all(nzchar(d)))
 })
 
-test_that("ccf_method_tiers values are valid tier names or NA", {
+test_that("ccf_method_tiers values are valid tier names, 'public' or NA", {
   m <- ccf_method_tiers()
-  ok <- m %in% c(ccf_tier_names(), NA_character_)
+  ok <- m %in% c(ccf_tier_names(), "public", NA_character_)
   expect_true(all(ok | is.na(m)))
+})
+
+test_that("live functions are registered as public and callable at any tier", {
+  m <- ccf_method_tiers()
+  live_reg <- names(m)[!is.na(m) & m == "public"]
+  live_exp <- grep("^ccf_live", getNamespaceExports("ccfdata"), value = TRUE)
+  expect_setequal(live_reg, live_exp)
+  expect_identical(ccf_tier_required("ccf_live_latest_events"), "public")
+  expect_true("ccf_live_latest_events" %in% ccf_methods_by_tier("metadata"))
+  expect_setequal(ccf_methods_by_tier("public", exact = TRUE), live_reg)
 })
 
 test_that("ccf_tier_required returns the right tier for core functions", {
